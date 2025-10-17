@@ -83,6 +83,7 @@ $graphSplat = @{
     uri            = $reqStatus.url
     outputFilePath = (join-path $outputFolder "$policyId.zip")
     ErrorAction    = 'STOP'
+    ProgressAction = "SilentlyContinue"
 }
 
 try { 
