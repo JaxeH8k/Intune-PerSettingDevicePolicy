@@ -1,6 +1,16 @@
+[cmdletbinding()]
 param(
+    [parameter(Mandatory = $true)]
     $policyId = '136fe68b-ffcb-4af4-bfb9-e0c5522e9e83',
+    [parameter(Mandatory = $true)]
+    $policyName,
+    [parameter(Mandatory = $true)]
+    $outputFolder,
+    [parameter(Mandatory=$true)]
+    $outputFileName,
+    [parameter(Mandatory = $true)]
     $intuneDeviceId = 'c9cc3b19-a386-4961-ad60-283da36d1213',
+    [parameter(Mandatory = $true)]
     $userId = '8b7e239e-c017-41f4-a4a7-50f1fa4f5f08'
 )
 
@@ -12,33 +22,40 @@ param(
 
 #>
 $graphsplat = @{
-    uri    = 'https://graph.microsoft.com/beta/deviceManagement/reports/getConfigurationSettingsReport'
-    method = 'POST'
-    body   = @{
+    uri         = 'https://graph.microsoft.com/beta/deviceManagement/reports/getConfigurationSettingNoncomplianceReport'
+    method      = 'POST'
+    body        = @{
         select = @(
             "SettingName",
             "SettingStatus",
             "ErrorCode",
-            "SettingId",
+            "SettingInstancePath",
             "SettingInstanceId"
         )
-        search = ""
         skip   = 0
         top    = 50
         filter = "(PolicyId eq '$policyId') and (DeviceId eq '$intuneDeviceId') and (UserId eq '$userId')"
         #filter = "(PolicyId eq '136fe68b-ffcb-4af4-bfb9-e0c5522e9e83') and (DeviceId eq 'c9cc3b19-a386-4961-ad60-283da36d1213')"
     } | ConvertTo-Json
     ContentType = 'application/json'
+    ErrorAction = 'STOP'
 }
 
-$r = Invoke-MgGraphRequest @graphsplat
+try {
+    $r = Invoke-MgGraphRequest @graphsplat
 
-$rObject = ConvertFrom-Json -InputObject $r
-$schema = $rObject.schema
-foreach($obj in $rObject.Values){
-    $pso = [pscustomobject]@{}
-    for ($i = 0; $i -lt $obj.count; $i++){
-        Add-Member -InputObject $pso -MemberType NoteProperty -Name $schema[$i].column -Value $obj[$i] 
+    $bag = @()
+    $schema = $r.schema
+    foreach ($obj in $r.Values) {
+        $pso = [pscustomobject]@{}
+        for ($i = 0; $i -lt $obj.count; $i++) {
+            Add-Member -InputObject $pso -MemberType NoteProperty -Name $schema[$i].column -Value $obj[$i] 
+        }
+        $bag += $pso
     }
-    $pso
+
+    $bag | Export-Csv -Path (Join-Path $outputFolder $outputFileName) -NoTypeInformation
+}
+catch {
+    throw $_
 }
